@@ -2,104 +2,272 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 222 20% 5%;
+    --foreground: 228 33% 97%;
+    --card: 224 22% 10%;
+    --card-foreground: 228 33% 97%;
+    --popover: 224 22% 10%;
+    --popover-foreground: 228 33% 97%;
+    --primary: 244 95% 69%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 190 100% 50%;
+    --secondary-foreground: 222 20% 5%;
+    --muted: 228 18% 14%;
+    --muted-foreground: 228 14% 60%;
+    --accent: 163 70% 52%;
+    --accent-foreground: 222 20% 5%;
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 20% 5%;
+    --border: 0 0% 100% / 0.07;
+    --input: 0 0% 100% / 0.1;
+    --ring: 244 95% 69%;
+    --radius: 0.875rem;
+    --text-secondary: 228 14% 60%;
+    --text-muted: 228 16% 36%;
+    --surface-elevated: 224 20% 15%;
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
   }
 
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 60%;
+    height: 60%;
+    background: radial-gradient(ellipse at 80% 0%, hsla(244, 95%, 69%, 0.12) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+  }
+
+  .glass-nav {
+    background: rgba(13, 15, 20, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .btn-primary {
+    @apply font-semibold text-primary-foreground;
+    background-color: hsl(var(--primary));
+    border-radius: 8px;
+    padding: 0.65rem 1.4rem;
+    transition: all 0.2s ease;
+  }
+  .btn-primary:hover {
+    background-color: hsl(248, 90%, 73%);
+    box-shadow: 0 0 20px rgba(108, 99, 255, 0.5);
+  }
+  .btn-primary:active {
+    transform: scale(0.97);
+  }
+  .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  .btn-outline {
+    @apply font-semibold;
+    background: transparent;
+    border: 1px solid rgba(108, 99, 255, 0.5);
+    color: hsl(var(--primary));
+    border-radius: 8px;
+    padding: 0.65rem 1.4rem;
+    transition: all 0.2s ease;
+  }
+  .btn-outline:hover {
+    background: rgba(108, 99, 255, 0.1);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: hsl(var(--text-secondary));
+    border: none;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover {
+    color: hsl(var(--foreground));
+  }
+
+  .form-input {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: hsl(var(--foreground));
+    padding: 0.75rem 1rem;
+    width: 100%;
+    transition: all 0.2s ease;
+    outline: none;
+    font-family: inherit;
+  }
+  .form-input::placeholder {
+    color: hsl(var(--text-muted));
+  }
+  .form-input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.2);
+  }
+
+  .form-label {
+    color: hsl(var(--text-secondary));
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+    display: block;
+  }
+
+  .badge {
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .badge-beginner {
+    background: rgba(34, 211, 160, 0.12);
+    color: hsl(var(--accent));
+    border: 1px solid rgba(34, 211, 160, 0.25);
+  }
+  .badge-intermediate {
+    background: rgba(245, 158, 11, 0.12);
+    color: hsl(var(--warning));
+    border: 1px solid rgba(245, 158, 11, 0.25);
+  }
+  .badge-advanced {
+    background: rgba(244, 63, 94, 0.12);
+    color: hsl(var(--destructive));
+    border: 1px solid rgba(244, 63, 94, 0.25);
+  }
+
+  .badge-stack {
+    background: rgba(0, 210, 255, 0.08);
+    color: hsl(var(--secondary));
+    border: 1px solid rgba(0, 210, 255, 0.2);
+  }
+
+  .hover-card {
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .hover-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--accent)));
+    border-radius: var(--radius) var(--radius) 0 0;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .hover-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  .hover-card:hover::before {
+    opacity: 1;
+  }
+
+  .build-box {
+    background: rgba(0, 210, 255, 0.05);
+    border-left: 3px solid hsl(var(--secondary));
+    border-radius: 0 8px 8px 0;
+    padding: 0.6rem 0.9rem;
+  }
+
+  .hero-banner {
+    background: linear-gradient(135deg, rgba(108, 99, 255, 0.08), rgba(0, 210, 255, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-banner::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--secondary)));
+  }
+}
+
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fadeInUp 0.3s ease-out both;
+  }
+
+  .text-secondary-custom {
+    color: hsl(var(--text-secondary));
+  }
+
+  .text-muted-custom {
+    color: hsl(var(--text-muted));
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
