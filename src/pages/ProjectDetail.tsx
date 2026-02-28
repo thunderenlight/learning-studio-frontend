@@ -66,9 +66,7 @@ export function ProjectDetail() {
               </span>
               <span className={`badge flex items-center gap-1.5 ${getStatusColor(project.status)}`}>
                 <span
-                  className={`w-2 h-2 rounded-full ${getStatusDot(project.status)} ${
-                    project.status === "in_progress" ? "" : ""
-                  }`}
+                  className={`w-2 h-2 rounded-full ${getStatusDot(project.status)}`}
                   style={
                     project.status === "in_progress"
                       ? { animation: "pulse-dot 2s ease-in-out infinite" }
@@ -92,7 +90,7 @@ export function ProjectDetail() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {project.modules.map((m) => (
-                <ModuleCard key={m.moduleId} module={m} />
+                <ModuleCard key={m.moduleId} module={m} projectId={project.projectId} />
               ))}
             </div>
           )}

@@ -1,3 +1,5 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { markModuleComplete, markModuleIncomplete } from "../api/client";
 import type { PlannedModule, ModuleStatus } from "../types";
 
 function getStripeColor(s: ModuleStatus): string {
@@ -20,8 +22,51 @@ function getStatusBadge(s: ModuleStatus) {
   return map[s];
 }
 
-export function ModuleCard({ module }: { module: PlannedModule }) {
+export function ModuleCard({ module, projectId }: { module: PlannedModule; projectId: string }) {
   const status = getStatusBadge(module.status);
+  const queryClient = useQueryClient();
+
+  const completeMutation = useMutation({
+    mutationFn: () => markModuleComplete(module.moduleId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["project", projectId] });
+      queryClient.setQueryData(["project", projectId], (old: unknown) => {
+        if (!old) return old;
+        const proj = old as { modules: PlannedModule[] };
+        return {
+          ...proj,
+          modules: proj.modules.map((m: PlannedModule) =>
+            m.moduleId === module.moduleId ? { ...m, status: "completed" as ModuleStatus } : m
+          ),
+        };
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    },
+  });
+
+  const incompleteMutation = useMutation({
+    mutationFn: () => markModuleIncomplete(module.moduleId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["project", projectId] });
+      queryClient.setQueryData(["project", projectId], (old: unknown) => {
+        if (!old) return old;
+        const proj = old as { modules: PlannedModule[] };
+        return {
+          ...proj,
+          modules: proj.modules.map((m: PlannedModule) =>
+            m.moduleId === module.moduleId ? { ...m, status: "not_started" as ModuleStatus } : m
+          ),
+        };
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+    },
+  });
+
+  const isCompleted = module.status === "completed";
 
   return (
     <div className="glass-card animate-fade-in-up flex overflow-hidden">
@@ -59,6 +104,7 @@ export function ModuleCard({ module }: { module: PlannedModule }) {
                     : undefined
                 }
               />
+              {isCompleted && <span className="mr-0.5">✓</span>}
               {status.label}
             </span>
           </div>
@@ -105,6 +151,15 @@ export function ModuleCard({ module }: { module: PlannedModule }) {
             </a>
           )}
         </div>
+
+        {/* Progress button */}
+        <button
+          className={isCompleted ? "btn-ghost text-sm text-accent" : "btn-outline text-sm"}
+          onClick={() => isCompleted ? incompleteMutation.mutate() : completeMutation.mutate()}
+          disabled={completeMutation.isPending || incompleteMutation.isPending}
+        >
+          {isCompleted ? "✓ Completed — Undo" : "Mark Complete"}
+        </button>
       </div>
     </div>
   );
