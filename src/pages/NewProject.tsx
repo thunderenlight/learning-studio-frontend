@@ -23,9 +23,9 @@ export function NewProject() {
 
   const mutation = useMutation({
     mutationFn: createProject,
-    onSuccess: (project) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      navigate(`/projects/${project.projectId}`);
+      navigate(`/projects/${data.projectId}`);
     },
   });
 

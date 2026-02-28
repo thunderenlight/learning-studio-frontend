@@ -14,7 +14,159 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      module_progress: {
+        Row: {
+          completed_at: string | null
+          id: string
+          module_id: string
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          id?: string
+          module_id: string
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          id?: string
+          module_id?: string
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_progress_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      module_resources: {
+        Row: {
+          id: string
+          label: string
+          module_id: string
+          type: string
+          url: string
+        }
+        Insert: {
+          id?: string
+          label: string
+          module_id: string
+          type: string
+          url: string
+        }
+        Update: {
+          id?: string
+          label?: string
+          module_id?: string
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "module_resources_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules: {
+        Row: {
+          created_at: string | null
+          deliverable: string
+          estimated_hours: number
+          git_repo_url: string | null
+          id: string
+          interactive_hint: string | null
+          objectives: string[]
+          order_index: number
+          project_id: string
+          starter_code_url: string | null
+          status: string | null
+          summary: string
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          deliverable: string
+          estimated_hours: number
+          git_repo_url?: string | null
+          id?: string
+          interactive_hint?: string | null
+          objectives: string[]
+          order_index: number
+          project_id: string
+          starter_code_url?: string | null
+          status?: string | null
+          summary: string
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          deliverable?: string
+          estimated_hours?: number
+          git_repo_url?: string | null
+          id?: string
+          interactive_hint?: string | null
+          objectives?: string[]
+          order_index?: number
+          project_id?: string
+          starter_code_url?: string | null
+          status?: string | null
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string | null
+          description: string
+          difficulty: string
+          id: string
+          status: string | null
+          target_stack: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          difficulty: string
+          id?: string
+          status?: string | null
+          target_stack: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          difficulty?: string
+          id?: string
+          status?: string | null
+          target_stack?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
