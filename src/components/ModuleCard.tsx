@@ -1,4 +1,6 @@
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 import { markModuleComplete, markModuleIncomplete } from "../api/client";
 import type { PlannedModule, ModuleStatus } from "../types";
 
@@ -23,6 +25,7 @@ function getStatusBadge(s: ModuleStatus) {
 }
 
 export function ModuleCard({ module, projectId }: { module: PlannedModule; projectId: string }) {
+  const navigate = useNavigate();
   const status = getStatusBadge(module.status);
   const queryClient = useQueryClient();
 
@@ -69,7 +72,10 @@ export function ModuleCard({ module, projectId }: { module: PlannedModule; proje
   const isCompleted = module.status === "completed";
 
   return (
-    <div className="glass-card animate-fade-in-up flex overflow-hidden">
+    <div
+      className="glass-card animate-fade-in-up flex overflow-hidden cursor-pointer transition-all hover:ring-1 hover:ring-primary/30"
+      onClick={() => navigate(`/projects/${projectId}/modules/${module.moduleId}`)}
+    >
       {/* Left stripe */}
       <div
         className="w-1 flex-shrink-0 rounded-l-lg"
@@ -108,6 +114,7 @@ export function ModuleCard({ module, projectId }: { module: PlannedModule; proje
               {status.label}
             </span>
           </div>
+          <ChevronRight size={18} className="text-muted-foreground flex-shrink-0 mt-1" />
         </div>
 
         {/* Summary */}
@@ -155,7 +162,10 @@ export function ModuleCard({ module, projectId }: { module: PlannedModule; proje
         {/* Progress button */}
         <button
           className={isCompleted ? "btn-ghost text-sm text-accent" : "btn-outline text-sm"}
-          onClick={() => isCompleted ? incompleteMutation.mutate() : completeMutation.mutate()}
+          onClick={(e) => {
+            e.stopPropagation();
+            isCompleted ? incompleteMutation.mutate() : completeMutation.mutate();
+          }}
           disabled={completeMutation.isPending || incompleteMutation.isPending}
         >
           {isCompleted ? "✓ Completed — Undo" : "Mark Complete"}

@@ -5,6 +5,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { Dashboard } from "./pages/Dashboard";
 import { NewProject } from "./pages/NewProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
+import { ModuleDetail } from "./pages/ModuleDetail";
 import { Login } from "./pages/Login";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,9 @@ function Navbar() {
         <Link to="/new" className="btn-primary text-sm">
           New Project
         </Link>
+        <span className="text-muted-foreground text-xs max-w-[160px] truncate hidden sm:inline">
+          {user.email}
+        </span>
         <button onClick={signOut} className="btn-ghost text-sm">
           Sign Out
         </button>
@@ -43,6 +47,7 @@ export default function App() {
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/new" element={<ProtectedRoute><NewProject /></ProtectedRoute>} />
               <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
+              <Route path="/projects/:projectId/modules/:moduleId" element={<ProtectedRoute><ModuleDetail /></ProtectedRoute>} />
             </Routes>
           </main>
         </AuthProvider>

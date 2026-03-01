@@ -6,6 +6,10 @@ import type {
   ProjectSummary,
   ListProjectsResponse,
   PlannedModule,
+  ObjectiveProgress,
+  ObjectiveStatus,
+  ChatMessage,
+  SandboxSession,
 } from "../types";
 
 async function getUserId(): Promise<string> {
@@ -157,6 +161,119 @@ export async function markModuleIncomplete(moduleId: string): Promise<void> {
       module_id: moduleId,
       status: "not_started",
       completed_at: null,
+    },
+    { onConflict: "user_id,module_id" }
+  );
+  if (error) throw new Error(error.message);
+}
+
+// ── Objective Progress ──
+
+export async function getObjectiveProgress(moduleId: string): Promise<ObjectiveProgress[]> {
+  const userId = await getUserId();
+  const { data, error } = await supabase
+    .from("objective_progress")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("module_id", moduleId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    userId: r.user_id as string,
+    projectId: r.project_id as string,
+    moduleId: r.module_id as string,
+    objectiveIndex: r.objective_index as number,
+    status: r.status as ObjectiveStatus,
+  }));
+}
+
+export async function upsertObjectiveProgress(
+  projectId: string,
+  moduleId: string,
+  objectiveIndex: number,
+  status: ObjectiveStatus
+): Promise<void> {
+  const userId = await getUserId();
+  const { error } = await supabase.from("objective_progress").upsert(
+    {
+      user_id: userId,
+      project_id: projectId,
+      module_id: moduleId,
+      objective_index: objectiveIndex,
+      status,
+    },
+    { onConflict: "user_id,module_id,objective_index" }
+  );
+  if (error) throw new Error(error.message);
+}
+
+// ── Chat Messages ──
+
+export async function getChatMessages(moduleId: string): Promise<ChatMessage[]> {
+  const userId = await getUserId();
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("module_id", moduleId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: r.id as string,
+    userId: r.user_id as string,
+    projectId: r.project_id as string,
+    moduleId: r.module_id as string,
+    message: r.message as string,
+    role: r.role as "user" | "system",
+    createdAt: r.created_at as string,
+  }));
+}
+
+export async function sendChatMessage(
+  projectId: string,
+  moduleId: string,
+  message: string,
+  role: "user" | "system"
+): Promise<void> {
+  const userId = await getUserId();
+  const { error } = await supabase.from("chat_messages").insert({
+    user_id: userId,
+    project_id: projectId,
+    module_id: moduleId,
+    message,
+    role,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ── Sandbox Sessions ──
+
+export async function getSandboxSession(moduleId: string): Promise<SandboxSession | null> {
+  const userId = await getUserId();
+  const { data, error } = await supabase
+    .from("sandbox_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("module_id", moduleId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return {
+    userId: data.user_id as string,
+    moduleId: data.module_id as string,
+    code: data.code as string,
+    updatedAt: data.updated_at as string,
+  };
+}
+
+export async function saveSandboxSession(moduleId: string, code: string): Promise<void> {
+  const userId = await getUserId();
+  const { error } = await supabase.from("sandbox_sessions").upsert(
+    {
+      user_id: userId,
+      module_id: moduleId,
+      code,
+      updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id,module_id" }
   );

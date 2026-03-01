@@ -20,6 +20,9 @@ export interface PlannedModule {
   estimated_hours: number;
   status: ModuleStatus;
   gitRepoUrl: string | null;
+  starterCodeUrl: string | null;
+  interactiveHint: string | null;
+  resources: ModuleResource[];
 }
 
 export interface LearningProject {
@@ -54,4 +57,39 @@ export interface ApiError {
   error: string;
   message: string;
   field?: string;
+}
+
+export type ObjectiveStatus = "not_started" | "in_progress" | "completed";
+
+export interface ObjectiveProgress {
+  id: string;
+  userId: string;
+  projectId: string;
+  moduleId: string;
+  objectiveIndex: number;
+  status: ObjectiveStatus;
+}
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  projectId: string;
+  moduleId: string;
+  message: string;
+  role: "user" | "system";
+  createdAt: string;
+}
+
+export interface SandboxSession {
+  userId: string;
+  moduleId: string;
+  code: string;
+  updatedAt: string;
+}
+
+export interface ModuleResource {
+  id: string;
+  label: string;
+  url: string;
+  type: string;
 }

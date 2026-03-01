@@ -2,6 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 type Tab = "login" | "signup";
 
@@ -106,11 +107,7 @@ export function Login() {
               />
             </div>
 
-            {error && (
-              <div className="p-3 rounded-lg text-sm text-destructive" style={{ background: "rgba(244,63,94,0.1)" }}>
-                {error}
-              </div>
-            )}
+            <ErrorBanner message={error} />
 
             <button type="submit" className="btn-primary w-full" disabled={pending}>
               {pending ? "Please wait…" : tab === "login" ? "Sign In" : "Sign Up"}
