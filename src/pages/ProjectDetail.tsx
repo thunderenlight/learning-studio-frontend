@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { getProject } from "../api/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
+import { getProject, deleteProject } from "../api/client";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { ModuleCard } from "../components/ModuleCard";
 import type { Difficulty, ProjectStatus } from "../types";
@@ -26,11 +28,21 @@ function getStatusDot(s: ProjectStatus): string {
 export function ProjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const { data: project, isLoading, isError, error } = useQuery({
     queryKey: ["project", id],
     queryFn: () => getProject(id!),
     enabled: !!id,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteProject(id!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      navigate("/");
+    },
   });
 
   return (
@@ -52,7 +64,43 @@ export function ProjectDetail() {
 
       {project && (
         <>
-          <div className="hero-banner p-8 mb-8 animate-fade-in-up">
+          <div className="hero-banner p-8 mb-8 animate-fade-in-up relative">
+            {/* Delete button top-right */}
+            <div className="absolute top-4 right-4">
+              {!confirmingDelete ? (
+                <button
+                  className="flex items-center gap-1.5 text-sm text-destructive hover:text-destructive/80 transition-colors"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  <Trash2 size={16} />
+                  Delete Project
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-foreground">Are you sure?</span>
+                  <button
+                    className="px-3 py-1 rounded bg-destructive text-destructive-foreground text-xs font-medium disabled:opacity-50"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate()}
+                  >
+                    {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                  </button>
+                  <button
+                    className="px-3 py-1 rounded bg-muted text-muted-foreground text-xs font-medium"
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {deleteMutation.isError && (
+              <p className="text-destructive text-xs mb-2">
+                {(deleteMutation.error as Error).message}
+              </p>
+            )}
+
             <h1 className="text-3xl font-extrabold text-foreground mb-2">
               {project.title}
             </h1>
