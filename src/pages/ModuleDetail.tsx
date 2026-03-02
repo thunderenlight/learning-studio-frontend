@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Circle, CircleDot, CheckCircle2, Send, Save } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
 import {
   getProject,
   getObjectiveProgress,
   upsertObjectiveProgress,
   getChatMessages,
   sendChatMessage,
+  sendAiChatMessage,
   getSandboxSession,
   saveSandboxSession,
 } from "@/api/client";
@@ -37,6 +39,7 @@ export function ModuleDetail() {
   const [chatInput, setChatInput] = useState("");
   const [code, setCode] = useState("");
   const [codeLoaded, setCodeLoaded] = useState(false);
+  const [isAiTyping, setIsAiTyping] = useState(false);
 
   // ── Queries ──
   const projectQuery = useQuery({
@@ -73,7 +76,7 @@ export function ModuleDetail() {
     }
   }, [sandboxQuery.data, sandboxQuery.isFetched, codeLoaded]);
 
-  // ── Realtime subscription for chat ──
+  // ── Realtime subscription for chat (dedup by id) ──
   useEffect(() => {
     if (!moduleId) return;
     const channel = supabase
@@ -81,8 +84,15 @@ export function ModuleDetail() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages", filter: `module_id=eq.${moduleId}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["chat-messages", moduleId] });
+        (payload) => {
+          queryClient.setQueryData<ChatMessage[]>(
+            ["chat-messages", moduleId],
+            (old) => {
+              const msg = payload.new as ChatMessage;
+              if ((old ?? []).some((m) => m.id === msg.id)) return old ?? [];
+              return [...(old ?? []), msg];
+            }
+          );
         }
       )
       .subscribe();
@@ -92,7 +102,7 @@ export function ModuleDetail() {
   // Auto-scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatQuery.data]);
+  }, [chatQuery.data, isAiTyping]);
 
   // ── Mutations ──
   const toggleObjective = useMutation({
@@ -103,9 +113,32 @@ export function ModuleDetail() {
     },
   });
 
-  const sendMessage = useMutation({
-    mutationFn: ({ message, role }: { message: string; role: "user" | "system" }) =>
+  const sendMessageMutation = useMutation({
+    mutationFn: ({ message, role }: { message: string; role: "user" | "system" | "assistant" }) =>
       sendChatMessage(projectId!, moduleId!, message, role),
+    onMutate: async ({ message, role }) => {
+      await queryClient.cancelQueries({ queryKey: ["chat-messages", moduleId] });
+      const previous = queryClient.getQueryData<ChatMessage[]>(["chat-messages", moduleId]);
+      const optimistic: ChatMessage = {
+        id: crypto.randomUUID(),
+        user_id: "",
+        project_id: projectId!,
+        module_id: moduleId!,
+        message,
+        role,
+        created_at: new Date().toISOString(),
+      };
+      queryClient.setQueryData<ChatMessage[]>(
+        ["chat-messages", moduleId],
+        (old) => [...(old ?? []), optimistic]
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["chat-messages", moduleId], context.previous);
+      }
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["chat-messages", moduleId] });
     },
@@ -125,7 +158,7 @@ export function ModuleDetail() {
 
   const progressMap: Record<number, ObjectiveStatus> = {};
   (progressQuery.data ?? []).forEach((p) => {
-    progressMap[p.objectiveIndex] = p.status;
+    progressMap[p.objective_index] = p.status;
   });
 
   const completedCount = mod
@@ -149,9 +182,8 @@ export function ModuleDetail() {
   function handleObjectiveClick(index: number) {
     const current = progressMap[index] ?? "not_started";
     const ns = nextStatus(current);
-    toggleObjective.mutate({ index: index, newStatus: ns });
+    toggleObjective.mutate({ index, newStatus: ns });
 
-    // Fire lesson message into chat
     if (!mod) return;
     const obj = mod.objectives[index];
     const resourceLinks = (mod.resources ?? [])
@@ -159,14 +191,36 @@ export function ModuleDetail() {
       .join("\n");
     const hint = mod.interactiveHint ? `\n💡 Hint: ${mod.interactiveHint}` : "";
     const lessonMsg = `📘 Lesson: ${obj}${resourceLinks ? `\n\n📎 Resources:\n${resourceLinks}` : ""}${hint}`;
-    sendMessage.mutate({ message: lessonMsg, role: "system" });
+    sendMessageMutation.mutate({ message: lessonMsg, role: "system" });
   }
 
-  function handleSendChat(e: React.FormEvent) {
+  async function handleSendChat(e: React.FormEvent) {
     e.preventDefault();
-    if (!chatInput.trim()) return;
-    sendMessage.mutate({ message: chatInput.trim(), role: "user" });
+    const text = chatInput.trim();
+    if (!text || !mod) return;
     setChatInput("");
+
+    // Insert user message (optimistic)
+    sendMessageMutation.mutate({ message: text, role: "user" });
+
+    // Call AI
+    setIsAiTyping(true);
+    try {
+      const { reply } = await sendAiChatMessage(
+        projectId!,
+        moduleId!,
+        mod.title,
+        mod.summary,
+        mod.objectives,
+        text
+      );
+      // Insert assistant reply
+      sendMessageMutation.mutate({ message: reply, role: "assistant" });
+    } catch {
+      sendMessageMutation.mutate({ message: "⚠️ Could not get AI response. Please try again.", role: "system" });
+    } finally {
+      setIsAiTyping(false);
+    }
   }
 
   return (
@@ -226,21 +280,47 @@ export function ModuleDetail() {
             {/* ── Chat Tab ── */}
             <TabsContent value="chat" className="flex-1 flex flex-col p-0 m-0">
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2" style={{ maxHeight: "400px" }}>
-                {messages.length === 0 && (
+                {messages.length === 0 && !isAiTyping && (
                   <p className="text-muted-foreground text-sm text-center mt-10">No messages yet</p>
                 )}
                 {messages.map((msg) => (
                   <div
                     key={msg.id}
                     className={`rounded-lg px-3 py-2 text-sm max-w-[85%] whitespace-pre-wrap ${
-                      msg.role === "system"
-                        ? "bg-muted/50 text-secondary-custom self-start"
-                        : "bg-primary/20 text-foreground self-end"
+                      msg.role === "assistant"
+                        ? "bg-accent/10 text-foreground self-start"
+                        : msg.role === "system"
+                          ? "bg-muted/50 text-secondary-custom self-start"
+                          : "bg-primary/20 text-foreground self-end"
                     }`}
                   >
-                    {msg.message}
+                    {msg.role === "assistant" ? (
+                      <div className="flex items-start gap-1.5">
+                        <span className="flex-shrink-0">🤖</span>
+                        <div className="prose prose-invert prose-sm max-w-none [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_code]:font-mono [&_a]:text-primary [&_a]:underline">
+                          <ReactMarkdown
+                            components={{
+                              a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                            }}
+                          >
+                            {msg.message}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    ) : msg.role === "system" ? (
+                      <span>📘 {msg.message}</span>
+                    ) : (
+                      msg.message
+                    )}
                   </div>
                 ))}
+                {isAiTyping && (
+                  <div className="rounded-lg px-3 py-2 text-sm max-w-[85%] bg-accent/10 text-foreground self-start">
+                    <span className="flex items-center gap-1.5">
+                      🤖 <span className="animate-pulse">Thinking…</span>
+                    </span>
+                  </div>
+                )}
                 <div ref={chatEndRef} />
               </div>
               <form onSubmit={handleSendChat} className="flex gap-2 p-3 border-t border-border">
@@ -250,7 +330,7 @@ export function ModuleDetail() {
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                 />
-                <button type="submit" className="btn-primary p-2" disabled={sendMessage.isPending}>
+                <button type="submit" className="btn-primary p-2" disabled={sendMessageMutation.isPending || isAiTyping}>
                   <Send size={16} />
                 </button>
               </form>
@@ -272,7 +352,7 @@ export function ModuleDetail() {
                     />
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground text-xs">
-                        {sandboxQuery.data ? `Last saved ${new Date(sandboxQuery.data.updatedAt).toLocaleString()}` : "No code saved yet"}
+                        {sandboxQuery.data ? `Last saved ${new Date(sandboxQuery.data.updated_at).toLocaleString()}` : "No code saved yet"}
                       </span>
                       <button
                         className="btn-outline text-sm flex items-center gap-1.5"

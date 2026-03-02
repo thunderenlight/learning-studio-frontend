@@ -63,28 +63,29 @@ export type ObjectiveStatus = "not_started" | "in_progress" | "completed";
 
 export interface ObjectiveProgress {
   id: string;
-  userId: string;
-  projectId: string;
-  moduleId: string;
-  objectiveIndex: number;
+  user_id: string;
+  project_id: string;
+  module_id: string;
+  objective_index: number;
   status: ObjectiveStatus;
 }
 
 export interface ChatMessage {
   id: string;
-  userId: string;
-  projectId: string;
-  moduleId: string;
+  user_id: string;
+  project_id: string;
+  module_id: string;
   message: string;
-  role: "user" | "system";
-  createdAt: string;
+  role: "user" | "system" | "assistant";
+  created_at: string;
 }
 
 export interface SandboxSession {
-  userId: string;
-  moduleId: string;
+  id: string;
+  user_id: string;
+  module_id: string;
   code: string;
-  updatedAt: string;
+  updated_at: string;
 }
 
 export interface ModuleResource {
