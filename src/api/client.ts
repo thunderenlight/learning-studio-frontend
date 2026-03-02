@@ -177,14 +177,7 @@ export async function getObjectiveProgress(moduleId: string): Promise<ObjectiveP
     .eq("user_id", userId)
     .eq("module_id", moduleId);
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r: Record<string, unknown>) => ({
-    id: r.id as string,
-    userId: r.user_id as string,
-    projectId: r.project_id as string,
-    moduleId: r.module_id as string,
-    objectiveIndex: r.objective_index as number,
-    status: r.status as ObjectiveStatus,
-  }));
+  return (data ?? []) as unknown as ObjectiveProgress[];
 }
 
 export async function upsertObjectiveProgress(
@@ -218,22 +211,14 @@ export async function getChatMessages(moduleId: string): Promise<ChatMessage[]> 
     .eq("module_id", moduleId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r: Record<string, unknown>) => ({
-    id: r.id as string,
-    userId: r.user_id as string,
-    projectId: r.project_id as string,
-    moduleId: r.module_id as string,
-    message: r.message as string,
-    role: r.role as "user" | "system",
-    createdAt: r.created_at as string,
-  }));
+  return (data ?? []) as unknown as ChatMessage[];
 }
 
 export async function sendChatMessage(
   projectId: string,
   moduleId: string,
   message: string,
-  role: "user" | "system"
+  role: "user" | "system" | "assistant"
 ): Promise<void> {
   const userId = await getUserId();
   const { error } = await supabase.from("chat_messages").insert({
@@ -258,12 +243,7 @@ export async function getSandboxSession(moduleId: string): Promise<SandboxSessio
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return {
-    userId: data.user_id as string,
-    moduleId: data.module_id as string,
-    code: data.code as string,
-    updatedAt: data.updated_at as string,
-  };
+  return data as unknown as SandboxSession;
 }
 
 export async function saveSandboxSession(moduleId: string, code: string): Promise<void> {
@@ -278,4 +258,32 @@ export async function saveSandboxSession(moduleId: string, code: string): Promis
     { onConflict: "user_id,module_id" }
   );
   if (error) throw new Error(error.message);
+}
+
+// ── AI Chat ──
+
+export async function sendAiChatMessage(
+  projectId: string,
+  moduleId: string,
+  moduleTitle: string,
+  moduleSummary: string,
+  objectives: string[],
+  message: string
+): Promise<{ reply: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${API_BASE_URL}/api/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {}),
+    },
+    body: JSON.stringify({ projectId, moduleId, moduleTitle, moduleSummary, objectives, message }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text);
+  }
+  return res.json();
 }
