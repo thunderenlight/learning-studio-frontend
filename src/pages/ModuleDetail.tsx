@@ -324,7 +324,7 @@ export function ModuleDetail() {
                         </div>
                       </div>
                     ) : msg.role === "system" ? (
-                      <span>📘 {msg.message}</span>
+                      <span>{msg.message.startsWith("📘") ? msg.message : `📘 ${msg.message}`}</span>
                     ) : (
                       msg.message
                     )}
