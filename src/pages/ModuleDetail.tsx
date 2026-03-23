@@ -245,7 +245,7 @@ export function ModuleDetail() {
         <span className="flex items-center gap-1"><ArrowLeft size={16} /> Back to Project</span>
       </button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="flex flex-col gap-6">
         {/* ── Left Pane: Lessons ── */}
         <div className="glass-card p-6 animate-fade-in-up flex flex-col gap-4">
           <div>
