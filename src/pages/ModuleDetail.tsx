@@ -179,19 +179,35 @@ export function ModuleDetail() {
     );
   }
 
-  function handleObjectiveClick(index: number) {
+  async function handleObjectiveClick(index: number) {
     const current = progressMap[index] ?? "not_started";
     const ns = nextStatus(current);
     toggleObjective.mutate({ index, newStatus: ns });
 
     if (!mod) return;
     const obj = mod.objectives[index];
-    const resourceLinks = (mod.resources ?? [])
-      .map((r) => `${r.label}: ${r.url}`)
-      .join("\n");
-    const hint = mod.interactiveHint ? `\n💡 Hint: ${mod.interactiveHint}` : "";
-    const lessonMsg = `📘 Lesson: ${obj}${resourceLinks ? `\n\n📎 Resources:\n${resourceLinks}` : ""}${hint}`;
-    sendMessageMutation.mutate({ message: lessonMsg, role: "system" });
+    const userMsg = `I'm starting this objective: '${obj}'. Give me a concrete description of what I need to do and list the exact first 3 steps to get started.`;
+
+    // Insert user message (optimistic)
+    sendMessageMutation.mutate({ message: userMsg, role: "user" });
+
+    // Call AI
+    setIsAiTyping(true);
+    try {
+      const { reply } = await sendAiChatMessage(
+        projectId!,
+        moduleId!,
+        mod.title,
+        mod.summary,
+        mod.objectives,
+        userMsg
+      );
+      sendMessageMutation.mutate({ message: reply, role: "assistant" });
+    } catch {
+      sendMessageMutation.mutate({ message: "⚠️ Could not get AI response. Please try again.", role: "system" });
+    } finally {
+      setIsAiTyping(false);
+    }
   }
 
   async function handleSendChat(e: React.FormEvent) {
