@@ -1,236 +1,135 @@
 ## Overview
 
-Fix route params, switch interfaces to snake_case, add optimistic chat updates with Realtime deduplication, build an AI chat response flow via a new Supabase Edge Function, render assistant messages with react-markdown, and update the role constraint on `chat_messages`.  
-  
-Verify that the route param names in App.tsx exactly match the destructured names in useParams() in ModuleDetail.tsx. If useParams() uses project_id and module_id, the route must be /:project_id/modules/:module_id. If they already match, no change needed.  
-  
-The Cloudflare Worker backend (`learning-studio-backend`) also needs a new route `POST /api/chat`. Add it to the Worker's `src/index.ts` router. It should accept `{ projectId, moduleId, moduleTitle, moduleSummary, objectives, message }`, build a conversation array with a system prompt (coding tutor context) + the user message, call the LLM using the same pattern as `plannerAgent`, and return `{ reply: string }`. Include CORS headers consistent with the existing routes.
+Fix tab heading readability, improve markdown code block styling, and replace the textarea sandbox with a full Sandpack editor via a new `SandboxPanel` component.
 
 ---
 
-## Database Migration
+## 1. Tab heading contrast (`src/pages/ModuleDetail.tsx`)
 
-Add `'assistant'` to the allowed roles on `chat_messages`:
+Update the `TabsTrigger` elements (lines 292-293) to add `text-lg font-semibold` classes so "Chat" and "Sandbox" are visually prominent.
 
-```sql
-ALTER TABLE chat_messages DROP CONSTRAINT IF EXISTS chat_messages_role_check;
-ALTER TABLE chat_messages ADD CONSTRAINT chat_messages_role_check CHECK (role IN ('user', 'system', 'assistant'));
+## 2. Markdown code block styling (`src/pages/ModuleDetail.tsx`)
+
+Enhance the prose wrapper (line 316) with additional Tailwind arbitrary selectors:
+
+```
+[&_pre]:bg-[#1e1e2e] [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:my-2
+[&_code]:bg-[#1e1e2e] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-accent [&_code]:text-xs
+[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-foreground
 ```
 
-No other schema changes needed.
+This gives inline `code` a distinct dark pill background and code blocks a padded dark container, with `pre > code` reset so it doesn't double-style.
 
----
+## 3. New component: `src/components/SandboxPanel.tsx`
 
-## Bug 1: Route param naming
-
-`**src/App.tsx**` (line 50) -- No change needed. The route already uses `:projectId` and `:moduleId`, which matches `useParams()` in `ModuleDetail.tsx` line 33. These are already consistent.
-
-`**src/components/ModuleCard.tsx**` (line 77) -- Already correct: `navigate(\`/projects/${projectId}/modules/${module.moduleId})`.
-
-No changes required for Bug 1.
-
----
-
-## Bug 2: Snake_case interfaces
-
-### `src/types/index.ts`
-
-Change `ChatMessage`, `ObjectiveProgress`, and `SandboxSession` to use snake_case keys matching Supabase column names:
+### Props
 
 ```typescript
-export interface ChatMessage {
-  id: string;
-  user_id: string;
-  project_id: string;
-  module_id: string;
-  message: string;
-  role: "user" | "system" | "assistant";
-  created_at: string;
-}
-
-export interface ObjectiveProgress {
-  id: string;
-  user_id: string;
-  project_id: string;
-  module_id: string;
-  objective_index: number;
-  status: ObjectiveStatus;
-}
-
-export interface SandboxSession {
-  id: string;
-  user_id: string;
-  module_id: string;
-  code: string;
-  updated_at: string;
+interface SandboxPanelProps {
+  moduleId: string;
+  projectId: string;
+  moduleTitle: string;
+  moduleSummary: string;
+  objectives: string[];
+  starterCode: string | null;
+  targetStack: string;
+  onAskAi: (code: string) => void; // switches to chat tab & auto-sends
 }
 ```
 
-### `src/api/client.ts`
+### Dependencies
 
-Remove all `.map()` transformations for `getObjectiveProgress`, `getChatMessages`, and `getSandboxSession` -- return the raw Supabase data directly since the interfaces now match snake_case columns. Specifically:
+Install `@codesandbox/sandpack-react` and `@codesandbox/sandpack-themes`.
 
-- `getObjectiveProgress`: return `data ?? []` directly (cast as `ObjectiveProgress[]`)
-- `getChatMessages`: return `data ?? []` directly (cast as `ChatMessage[]`), update role type to include `'assistant'`
-- `getSandboxSession`: return `data` directly (cast as `SandboxSession | null`)
+### Template detection
 
-### `src/pages/ModuleDetail.tsx`
+- `targetStack` includes "Python" → show "Python sandbox coming soon" message + plain textarea fallback
+- `targetStack` includes "Vue" → `"vue-ts"` template
+- Default → `"react-ts"` template
 
-Update all property accesses to use snake_case:
+### Editor setup
 
-- `p.objectiveIndex` becomes `p.objective_index`
-- `msg.id`, `msg.role`, `msg.message` stay the same (already snake_case-compatible)
-- `sandboxQuery.data.updatedAt` becomes `sandboxQuery.data.updated_at`
-- `sendMessage` mutation role type updated to include `'assistant'`
+- `<SandpackProvider>` + `<SandpackLayout>` with `<SandpackCodeEditor>` and `<SandpackPreview>`
+- Theme: `sandpackDark` from `@codesandbox/sandpack-themes`
+- Height: 500px
+- Show file tabs via `showTabs` prop
+- Pre-load with `starterCode` if present (mapped into `customSetup.files`), otherwise default hello-world
 
----
+### Save & Restore
 
-## Bug 3: Chat messages only appear after refresh
+- On mount, query `sandbox_sessions` for this module+user. If exists, load that code instead of starter.
+- Use `useActiveCode()` hook from Sandpack to get current code.
+- Debounce code changes (3s) and upsert to `sandbox_sessions` via `saveSandboxSession`.
+- Show a small green "Auto-saved ✓" badge that fades after 2 seconds using a `useState` + `setTimeout`.
 
-### Optimistic update on `sendMessage` mutation
+### Reset button
 
-In `ModuleDetail.tsx`, update the `sendMessage` mutation:
+- Top-right "Reset to starter" button.
+- On click: confirm dialog ("This will clear your saved code. Continue?").
+- On confirm: reset Sandpack files to starter code, delete the `sandbox_sessions` row for this module+user (new `deleteSandboxSession` function in `src/api/client.ts`).
 
-- `**onMutate**`: Cancel queries for `['chat-messages', moduleId]`, snapshot previous data, append an optimistic message (with a temp UUID, current timestamp) to the cache.
-- `**onError**`: Roll back to the snapshot.
-- `**onSettled**`: Invalidate `['chat-messages', moduleId]`.
+### Ask AI button
 
-### Realtime subscription fix
+- "Ask AI about this code" button next to Reset.
+- On click: grab current code from `useActiveCode()`, call `onAskAi(code)` prop.
+- Parent (`ModuleDetail`) handles: switch active tab to "chat", build message `"Review this code and tell me what to improve:\n\n```\n${code}\n```"`, and auto-send it (same flow as objective click).
 
-Replace the `invalidateQueries` callback with a `setQueryData` call that appends `payload.new` only if not already in the cache (dedup by `id`):
+## 4. Wire into ModuleDetail (`src/pages/ModuleDetail.tsx`)
+
+- Convert `Tabs` to controlled mode with `useState<string>("chat")` for `activeTab`.
+- Replace the entire Sandbox `TabsContent` (lines 356-385) with `<SandboxPanel>`.
+- Pass `onAskAi` callback that sets `activeTab` to "chat", inserts the code review message, and triggers AI response.
+- Remove `code`, `codeLoaded`, `sandboxQuery`, and `saveCode` state/queries from ModuleDetail (moved into SandboxPanel).
+
+## 5. New API function (`src/api/client.ts`)
+
+Add `deleteSandboxSession(moduleId: string)` that deletes the user's sandbox session row:
 
 ```typescript
-.on('postgres_changes', { event: 'INSERT', ... }, (payload) => {
-  queryClient.setQueryData<ChatMessage[]>(
-    ['chat-messages', moduleId],
-    (old) => {
-      const msg = payload.new as ChatMessage;
-      if ((old ?? []).some(m => m.id === msg.id)) return old ?? [];
-      return [...(old ?? []), msg];
-    }
-  );
-})
-```
-
----
-
-## Bug 4: AI assistant responses
-
-### New Edge Function: `supabase/functions/chat/index.ts`
-
-A Supabase Edge Function that:
-
-1. Validates the JWT using `getClaims()` (with `verify_jwt = false` in config)
-2. Accepts POST body: `{ projectId, moduleId, moduleTitle, moduleSummary, objectives, message }`
-3. Calls the Cloudflare Worker at `POST ${API_BASE_URL}/api/chat` (or uses the same LLM endpoint pattern), passing the module context and user message. Since the user mentioned "same pattern as the planner agent" and the Worker is at `API_BASE_URL`, we'll proxy through to it.
-4. Alternatively (simpler): call the Cloudflare Worker directly from the frontend, same as `createProject` does.
-
-**Simpler approach chosen**: Add a new function `sendAiChatMessage` in `src/api/client.ts` that calls `POST ${API_BASE_URL}/api/chat` directly from the frontend (same pattern as `createProject` which already calls the Worker). No edge function needed -- the Cloudflare Worker handles LLM calls.
-
-### `src/api/client.ts` -- new function
-
-```typescript
-export async function sendAiChatMessage(
-  projectId: string,
-  moduleId: string,
-  moduleTitle: string,
-  moduleSummary: string,
-  objectives: string[],
-  message: string
-): Promise<{ reply: string }> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const res = await fetch(`${API_BASE_URL}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(session?.access_token
-        ? { Authorization: `Bearer ${session.access_token}` }
-        : {}),
-    },
-    body: JSON.stringify({ projectId, moduleId, moduleTitle, moduleSummary, objectives, message }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text);
-  }
-  return res.json();
+export async function deleteSandboxSession(moduleId: string): Promise<void> {
+  const userId = await getUserId();
+  const { error } = await supabase
+    .from("sandbox_sessions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("module_id", moduleId);
+  if (error) throw new Error(error.message);
 }
 ```
-
-### `src/pages/ModuleDetail.tsx` -- AI response flow
-
-In `handleSendChat`:
-
-1. Insert user message (optimistic update shows it immediately)
-2. Set `isAiTyping = true` state
-3. Call `sendAiChatMessage(...)` with module context
-4. On success: insert the reply as an `'assistant'` message via `sendChatMessage`
-5. On error: insert an error system message or show toast
-6. Set `isAiTyping = false`
-
-**Typing indicator**: While `isAiTyping` is true, render a "..." bubble at the bottom of the chat (left-aligned, with a pulsing animation).
-
-### Assistant message styling
-
-In the chat message rendering, add a third style branch for `role === 'assistant'`:
-
-```tsx
-msg.role === "assistant"
-  ? "bg-accent/10 text-foreground self-start"
-  : msg.role === "system"
-    ? "bg-muted/50 text-secondary-custom self-start"
-    : "bg-primary/20 text-foreground self-end"
-```
-
-Assistant messages get a `🤖` prefix icon. System messages keep `📘`.
-
-### react-markdown for assistant messages
-
-Install `react-markdown` (user explicitly requested it). For assistant role messages, render with:
-
-```tsx
-import ReactMarkdown from 'react-markdown';
-
-// Inside message render:
-{msg.role === "assistant" ? (
-  <ReactMarkdown className="prose prose-invert prose-sm [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_code]:font-mono [&_a]:text-primary [&_a]:underline"
-    components={{
-      a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-    }}
-  >
-    {msg.message}
-  </ReactMarkdown>
-) : msg.message}
-```
-
----
-
-## `supabase/config.toml`
-
-No edge function changes needed since we're calling the Cloudflare Worker directly.
-
----
 
 ## Files Changed
 
 
-| File                         | Changes                                                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/types/index.ts`         | Snake_case interfaces, add `'assistant'` role                                                                                         |
-| `src/api/client.ts`          | Remove mappers, return raw data; add `sendAiChatMessage`                                                                              |
-| `src/pages/ModuleDetail.tsx` | Snake_case property access, optimistic updates, Realtime dedup, AI response flow, typing indicator, assistant styling, react-markdown |
-| `package.json`               | Add `react-markdown` dependency                                                                                                       |
-| Supabase migration           | Update role check constraint                                                                                                          |
+| File                              | Changes                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `package.json`                    | Add `@codesandbox/sandpack-react`, `@codesandbox/sandpack-themes`                              |
+| `src/components/SandboxPanel.tsx` | New -- Sandpack editor with save/restore/reset/ask-AI                                          |
+| `src/pages/ModuleDetail.tsx`      | Tab styling, markdown code blocks, controlled tabs, wire SandboxPanel, remove old sandbox code |
+| `src/api/client.ts`               | Add `deleteSandboxSession`                                                                     |
 
 
-## Dependencies
+## No changes to
 
-- Add `react-markdown` (user explicitly requested it for rendering assistant messages)
-
-## Not Changed
-
-- `src/App.tsx` -- route already correct
-- `src/components/ModuleCard.tsx` -- navigate URL already correct
 - Dashboard, NewProject, Login pages
-- Sandbox save/restore behavior
-- Existing dark theme styling  
+- Database schema (uses existing `sandbox_sessions` table)
+- Dark theme styling
+
+```
+Approved — please also address these 3 things during implementation:
+
+1. useActiveCode() hook placement: This hook must be called from INSIDE 
+   the SandpackProvider, not in the same component that renders it. 
+   Please ensure the debounce/save logic lives in a separate inner child 
+   component (e.g. SandboxAutoSave) nested inside <SandpackProvider>, 
+   otherwise it will throw a "must be used inside SandpackProvider" 
+   runtime error.
+
+2. Add the console panel: The SandpackLayout should include 
+   <SandpackConsole /> as a third panel below the editor and preview 
+   so learners can see runtime output and errors.
+
+3. Starter code file format: When mapping starterCode into 
+   customSetup.files, use the correct Sandpack format:
+   { "/App.tsx": { code: starterCode } }
+   not a plain string, otherwise the editor will load blank.
+```
