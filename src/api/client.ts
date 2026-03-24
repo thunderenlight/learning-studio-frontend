@@ -260,6 +260,16 @@ export async function saveSandboxSession(moduleId: string, code: string): Promis
   if (error) throw new Error(error.message);
 }
 
+export async function deleteSandboxSession(moduleId: string): Promise<void> {
+  const userId = await getUserId();
+  const { error } = await supabase
+    .from("sandbox_sessions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("module_id", moduleId);
+  if (error) throw new Error(error.message);
+}
+
 // ── AI Chat ──
 
 export async function sendAiChatMessage(
