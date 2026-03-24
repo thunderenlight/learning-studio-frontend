@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Circle, CircleDot, CheckCircle2, Send, Save } from "lucide-react";
+import { ArrowLeft, Circle, CircleDot, CheckCircle2, Send } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
@@ -12,10 +12,9 @@ import {
   getChatMessages,
   sendChatMessage,
   sendAiChatMessage,
-  getSandboxSession,
-  saveSandboxSession,
 } from "@/api/client";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { SandboxPanel } from "@/components/SandboxPanel";
 import type { ObjectiveStatus, ChatMessage, PlannedModule } from "@/types";
 
 const STATUS_CYCLE: ObjectiveStatus[] = ["not_started", "in_progress", "completed"];
@@ -37,9 +36,8 @@ export function ModuleDetail() {
   const queryClient = useQueryClient();
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [chatInput, setChatInput] = useState("");
-  const [code, setCode] = useState("");
-  const [codeLoaded, setCodeLoaded] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const [activeTab, setActiveTab] = useState("chat");
 
   // ── Queries ──
   const projectQuery = useQuery({
@@ -59,22 +57,6 @@ export function ModuleDetail() {
     queryFn: () => getChatMessages(moduleId!),
     enabled: !!moduleId,
   });
-
-  const sandboxQuery = useQuery({
-    queryKey: ["sandbox-session", moduleId],
-    queryFn: () => getSandboxSession(moduleId!),
-    enabled: !!moduleId,
-  });
-
-  // Load saved code once
-  useEffect(() => {
-    if (sandboxQuery.data && !codeLoaded) {
-      setCode(sandboxQuery.data.code);
-      setCodeLoaded(true);
-    } else if (sandboxQuery.isFetched && !sandboxQuery.data && !codeLoaded) {
-      setCodeLoaded(true);
-    }
-  }, [sandboxQuery.data, sandboxQuery.isFetched, codeLoaded]);
 
   // ── Realtime subscription for chat (dedup by id) ──
   useEffect(() => {
@@ -144,13 +126,6 @@ export function ModuleDetail() {
     },
   });
 
-  const saveCode = useMutation({
-    mutationFn: (c: string) => saveSandboxSession(moduleId!, c),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["sandbox-session", moduleId] });
-    },
-  });
-
   // ── Derived data ──
   const mod: PlannedModule | undefined = projectQuery.data?.modules.find(
     (m) => m.moduleId === moduleId
@@ -179,19 +154,9 @@ export function ModuleDetail() {
     );
   }
 
-  async function handleObjectiveClick(index: number) {
-    const current = progressMap[index] ?? "not_started";
-    const ns = nextStatus(current);
-    toggleObjective.mutate({ index, newStatus: ns });
-
+  async function triggerAiResponse(userMsg: string) {
     if (!mod) return;
-    const obj = mod.objectives[index];
-    const userMsg = `I'm starting this objective: '${obj}'. Give me a concrete description of what I need to do and list the exact first 3 steps to get started.`;
-
-    // Insert user message (optimistic)
     sendMessageMutation.mutate({ message: userMsg, role: "user" });
-
-    // Call AI
     setIsAiTyping(true);
     try {
       const { reply } = await sendAiChatMessage(
@@ -210,33 +175,30 @@ export function ModuleDetail() {
     }
   }
 
-  async function handleSendChat(e: React.FormEvent) {
+  function handleObjectiveClick(index: number) {
+    const current = progressMap[index] ?? "not_started";
+    const ns = nextStatus(current);
+    toggleObjective.mutate({ index, newStatus: ns });
+
+    if (!mod) return;
+    const obj = mod.objectives[index];
+    const userMsg = `I'm starting this objective: '${obj}'. Give me a concrete description of what I need to do and list the exact first 3 steps to get started.`;
+    setActiveTab("chat");
+    triggerAiResponse(userMsg);
+  }
+
+  function handleSendChat(e: React.FormEvent) {
     e.preventDefault();
     const text = chatInput.trim();
     if (!text || !mod) return;
     setChatInput("");
+    triggerAiResponse(text);
+  }
 
-    // Insert user message (optimistic)
-    sendMessageMutation.mutate({ message: text, role: "user" });
-
-    // Call AI
-    setIsAiTyping(true);
-    try {
-      const { reply } = await sendAiChatMessage(
-        projectId!,
-        moduleId!,
-        mod.title,
-        mod.summary,
-        mod.objectives,
-        text
-      );
-      // Insert assistant reply
-      sendMessageMutation.mutate({ message: reply, role: "assistant" });
-    } catch {
-      sendMessageMutation.mutate({ message: "⚠️ Could not get AI response. Please try again.", role: "system" });
-    } finally {
-      setIsAiTyping(false);
-    }
+  function handleAskAi(code: string) {
+    setActiveTab("chat");
+    const msg = `Review this code and tell me what to improve:\n\n\`\`\`\n${code}\n\`\`\``;
+    triggerAiResponse(msg);
   }
 
   return (
@@ -246,7 +208,7 @@ export function ModuleDetail() {
       </button>
 
       <div className="flex flex-col gap-6">
-        {/* ── Left Pane: Lessons ── */}
+        {/* ── Module Card ── */}
         <div className="glass-card p-6 animate-fade-in-up flex flex-col gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-foreground mb-1">{mod.title}</h1>
@@ -278,19 +240,18 @@ export function ModuleDetail() {
             })}
           </div>
 
-          {/* Deliverable */}
           <div className="build-box mt-auto">
             <p className="text-xs font-semibold uppercase tracking-wider text-secondary mb-1">Deliverable</p>
             <p className="text-sm text-foreground">{mod.deliverable}</p>
           </div>
         </div>
 
-        {/* ── Right Pane: Chat | Sandbox ── */}
+        {/* ── Chat | Sandbox Tabs ── */}
         <div className="glass-card animate-fade-in-up overflow-hidden flex flex-col" style={{ minHeight: "500px" }}>
-          <Tabs defaultValue="chat" className="flex flex-col flex-1">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1">
             <TabsList className="w-full rounded-none border-b border-border bg-transparent justify-start px-4 pt-2">
-              <TabsTrigger value="chat" className="data-[state=active]:bg-muted/40">Chat</TabsTrigger>
-              <TabsTrigger value="sandbox" className="data-[state=active]:bg-muted/40">Sandbox</TabsTrigger>
+              <TabsTrigger value="chat" className="text-lg font-semibold data-[state=active]:bg-muted/40">Chat</TabsTrigger>
+              <TabsTrigger value="sandbox" className="text-lg font-semibold data-[state=active]:bg-muted/40">Sandbox</TabsTrigger>
             </TabsList>
 
             {/* ── Chat Tab ── */}
@@ -313,7 +274,7 @@ export function ModuleDetail() {
                     {msg.role === "assistant" ? (
                       <div className="flex items-start gap-1.5">
                         <span className="flex-shrink-0">🤖</span>
-                        <div className="prose prose-invert prose-sm max-w-none [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_code]:font-mono [&_a]:text-primary [&_a]:underline">
+                        <div className="prose prose-invert prose-sm max-w-none [&_pre]:bg-[#1e1e2e] [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:my-2 [&_code]:bg-[#1e1e2e] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-accent [&_code]:text-xs [&_code]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-foreground [&_a]:text-primary [&_a]:underline">
                           <ReactMarkdown
                             components={{
                               a: ({ ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
@@ -354,34 +315,16 @@ export function ModuleDetail() {
 
             {/* ── Sandbox Tab ── */}
             <TabsContent value="sandbox" className="flex-1 flex flex-col p-0 m-0">
-              <div className="flex-1 p-4 flex flex-col gap-3">
-                {!codeLoaded ? (
-                  <LoadingSpinner />
-                ) : (
-                  <>
-                    <textarea
-                      className="flex-1 w-full font-mono text-sm p-4 rounded-lg border border-border bg-background text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      style={{ minHeight: "300px" }}
-                      placeholder="// Start coding here…"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                    />
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-xs">
-                        {sandboxQuery.data ? `Last saved ${new Date(sandboxQuery.data.updated_at).toLocaleString()}` : "No code saved yet"}
-                      </span>
-                      <button
-                        className="btn-outline text-sm flex items-center gap-1.5"
-                        onClick={() => saveCode.mutate(code)}
-                        disabled={saveCode.isPending}
-                      >
-                        <Save size={14} />
-                        {saveCode.isPending ? "Saving…" : "Save"}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <SandboxPanel
+                moduleId={moduleId!}
+                projectId={projectId!}
+                moduleTitle={mod.title}
+                moduleSummary={mod.summary}
+                objectives={mod.objectives}
+                starterCode={mod.starterCodeUrl}
+                targetStack={projectQuery.data?.targetStack ?? ""}
+                onAskAi={handleAskAi}
+              />
             </TabsContent>
           </Tabs>
         </div>
