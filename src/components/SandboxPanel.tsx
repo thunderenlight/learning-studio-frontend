@@ -158,7 +158,8 @@ export function SandboxPanel({
     );
   }
 
-  const initialCode = savedSession.data?.code || starterCode || DEFAULT_CODE;
+  const defaultCode = buildDefaultCode(moduleTitle, objectives);
+  const initialCode = savedSession.data?.code || starterCode || defaultCode;
 
   const files: Record<string, { code: string }> = {
     "/App.tsx": { code: initialCode },
@@ -183,7 +184,7 @@ export function SandboxPanel({
           </div>
           <div className="flex items-center gap-2">
             <AskAiButton onAskAi={onAskAi} />
-            <ResetButton moduleId={moduleId} starterCode={starterCode || DEFAULT_CODE} />
+            <ResetButton moduleId={moduleId} starterCode={starterCode || defaultCode} />
           </div>
         </div>
 
