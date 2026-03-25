@@ -197,7 +197,7 @@ export function ModuleDetail() {
 
   function handleAskAi(code: string) {
     setActiveTab("chat");
-    const msg = `Review this code and tell me what to improve:\n\n\`\`\`\n${code}\n\`\`\``;
+    const msg = "Review this code and tell me what to improve:\n\n```tsx\n" + code + "\n```";
     triggerAiResponse(msg);
   }
 
@@ -265,7 +265,7 @@ export function ModuleDetail() {
                     key={msg.id}
                     className={`rounded-lg px-3 py-2 text-sm max-w-[85%] whitespace-pre-wrap ${
                       msg.role === "assistant"
-                        ? "bg-accent/10 text-foreground self-start"
+                        ? "bg-secondary/10 border border-secondary/20 text-foreground self-start"
                         : msg.role === "system"
                           ? "bg-muted/50 text-secondary-custom self-start"
                           : "bg-primary/20 text-foreground self-end"

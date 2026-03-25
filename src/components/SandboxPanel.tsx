@@ -24,10 +24,10 @@ interface SandboxPanelProps {
   onAskAi: (code: string) => void;
 }
 
-const DEFAULT_CODE = `export default function App() {
-  return <h1>Hello, World!</h1>;
+function buildDefaultCode(moduleTitle: string, objectives: string[]): string {
+  const firstObjective = objectives.length > 0 ? objectives[0] : "Complete the module";
+  return `// Objective: ${firstObjective}\n// Write your solution below\n\nfunction solution() {\n  // TODO: implement this\n  console.log("Starting: ${moduleTitle}");\n}\n\nsolution();\n`;
 }
-`;
 
 function getTemplate(targetStack: string): "react-ts" | "vue-ts" | null {
   const lower = targetStack.toLowerCase();
@@ -158,7 +158,8 @@ export function SandboxPanel({
     );
   }
 
-  const initialCode = savedSession.data?.code || starterCode || DEFAULT_CODE;
+  const defaultCode = buildDefaultCode(moduleTitle, objectives);
+  const initialCode = savedSession.data?.code || starterCode || defaultCode;
 
   const files: Record<string, { code: string }> = {
     "/App.tsx": { code: initialCode },
@@ -183,14 +184,14 @@ export function SandboxPanel({
           </div>
           <div className="flex items-center gap-2">
             <AskAiButton onAskAi={onAskAi} />
-            <ResetButton moduleId={moduleId} starterCode={starterCode || DEFAULT_CODE} />
+            <ResetButton moduleId={moduleId} starterCode={starterCode || defaultCode} />
           </div>
         </div>
 
         {/* Editor + Preview + Console */}
-        <SandpackLayout style={{ height: 500, borderRadius: 0, border: "none" }}>
+        <SandpackLayout style={{ height: 500, borderRadius: 0, border: "none", background: "#0f0f14" }}>
           <SandpackCodeEditor showTabs style={{ height: "100%" }} />
-          <SandpackPreview style={{ height: "100%" }} />
+          <SandpackPreview style={{ height: "100%", background: "#0f0f14" }} />
         </SandpackLayout>
         <div style={{ height: 150 }} className="border-t border-border">
           <SandpackConsole style={{ height: "100%" }} />
