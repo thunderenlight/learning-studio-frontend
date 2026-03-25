@@ -24,10 +24,10 @@ interface SandboxPanelProps {
   onAskAi: (code: string) => void;
 }
 
-const DEFAULT_CODE = `export default function App() {
-  return <h1>Hello, World!</h1>;
+function buildDefaultCode(moduleTitle: string, objectives: string[]): string {
+  const firstObjective = objectives.length > 0 ? objectives[0] : "Complete the module";
+  return `// Objective: ${firstObjective}\n// Write your solution below\n\nfunction solution() {\n  // TODO: implement this\n  console.log("Starting: ${moduleTitle}");\n}\n\nsolution();\n`;
 }
-`;
 
 function getTemplate(targetStack: string): "react-ts" | "vue-ts" | null {
   const lower = targetStack.toLowerCase();
@@ -188,9 +188,9 @@ export function SandboxPanel({
         </div>
 
         {/* Editor + Preview + Console */}
-        <SandpackLayout style={{ height: 500, borderRadius: 0, border: "none" }}>
+        <SandpackLayout style={{ height: 500, borderRadius: 0, border: "none", background: "#0f0f14" }}>
           <SandpackCodeEditor showTabs style={{ height: "100%" }} />
-          <SandpackPreview style={{ height: "100%" }} />
+          <SandpackPreview style={{ height: "100%", background: "#0f0f14" }} />
         </SandpackLayout>
         <div style={{ height: 150 }} className="border-t border-border">
           <SandpackConsole style={{ height: "100%" }} />
